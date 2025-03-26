@@ -284,8 +284,102 @@ Przetestuj działanie w różnych SZBD (MS SQL Server, PostgreSql, SQLite)
 > Wyniki:
 
 ```sql
---  ...
+-- window function
+with t as (
+	select id, productid, date, productname, categoryid, unitprice,  
+		avg(unitprice) over(partition by categoryid) as avg_price_for_cat,
+		sum(value) over(partition by categoryid) as sum_val_for_cat,
+		avg(unitprice) over(partition by YEAR(date)) as avg_for_year,
+		sum(value) over(partition by YEAR(date)) as sum_for_year
+	from product_history
+	)
+select * from t
+where id between 1 and 200;
+
+-- window function z użyciem window i datepart (Postgresql, SQLite)
+with t as (
+	select id, productid, date, productname, categoryid, unitprice,  
+	avg(unitprice) over window_cat as avg_price_for_cat,
+	sum(value) over window_cat as sum_val_for_cat,
+	avg(unitprice) over window_year as avg_for_year,
+	sum(value) over window_year as sum_for_year
+	from product_history
+	window
+		window_cat as (partition by categoryid),
+		window_year as (partition by date_part('year', date))
+	)
+select * from t
+where id between 1 and 100;
 ```
+
+Plan MS:
+![w:700](z2_window_ms.png)
+
+
+Plan Postgresql:
+![w:700](z2_window_postgresql.png)
+
+```sql
+-- join 
+with avg_sum_per_cat as (
+    select categoryid, avg(unitprice) as avg_price_for_cat, sum(value) as sum_val_for_cat
+    from product_history
+    group by categoryid
+),
+avg_sum_per_year as (
+    select year(date) as year, avg(unitprice) as avg_for_year, sum(value) as sum_for_year
+    from product_history
+    group by year(date)
+),
+t as (
+	select ph.id, ph.productid, ph.date, ph.productname, ph.categoryid, ph.unitprice, ac.avg_price_for_cat, ac.sum_val_for_cat, ay.avg_for_year, ay.sum_for_year
+	from product_history ph
+	join avg_sum_per_cat ac ON ph.categoryid = ac.categoryid
+	join avg_sum_per_year ay ON year(ph.date) = ay.year
+)
+select * from t
+where id between 1 and 200;
+```
+
+Plan MS:
+![w:700](z2_join_ms.png)
+
+
+Plan Postgresql:
+![w:700](z2_join_postgresql.png)
+
+```sql
+--subquery
+with ts as (
+	select ph.id, ph.productid, ph.date, ph.productname, ph.categoryid, ph.unitprice, 
+	(select avg(ph1.unitprice) from product_history ph1 where ph1.categoryid = ph.categoryid) as avg_price_for_cat,
+	(select sum(ph2.value) from product_history ph2 where ph2.categoryid = ph.categoryid) as sum_val_for_cat,
+	(select avg(ph3.unitprice) from product_history ph3 where YEAR(ph3.date) = YEAR(ph.date)) as avg_for_year,
+	(select sum(ph4.value) from product_history ph4 where YEAR(ph4.date) = YEAR(ph.date)) as sum_for_year
+	from product_history ph
+)
+select * from ts
+where id between 1 and 200;
+```
+Plan MS:
+![w:700](z2_sub_ms.png)
+
+
+Plan Postgresql:
+![w:700](z2_sub_postgresql.png)
+
+
+Poniżej porównanie czasów rzeczywistych przy ograniczeniu id od 1 do 200.
+Dla MS SQL: elapsed time (set statistics time on/off).
+Dla Postgresql: execution time (explain analyze).
+
+| Operacja         | MS SQL[ms] | Postgres czas [ms] |
+|------------------|------------|--------------------|
+| Window function  | 1419       |    8550.937        |
+| Join             | 222        |    1100.068        |
+| Subquery         | 201408     |    315267.447      |
+
+Zapytanie z podzapytaniem zajmuje najwięcej czasu, zaś z joinem najmniej.
 
 ---
 
@@ -423,10 +517,12 @@ order by date;
 
 > Wyniki:
 
-```sql
---  ...
-```
 
+Funkcja 'lag()' -> zwraca poprzednią wartość według danej kolejności, zaś 'lead()' -> kolejną (tutaj: wartość ceny produktu poprzedniego/kolejnego zapisanego dnia).
+
+W wyniku pierwszego zapytania te wartości są wybierane tylko dla productid = 1 i rok = 2022, zaś w drugim zapytaniu te funkcje wykonywane są dla wszystkich wierszy, a wyświetlane tylko dla productid = 1 i rok = 2022. Dlatego dla pierwszego zapytania pierwsza wartość zwracana przez 'lag' to null, a w wyniku drugiego zapytania zwracana jest wartość. Dla 'lead', w obu przypadkach dla ostatniej wartości jest null, ponieważ w bazie nie ma dat dalszych niż 2022.
+
+![alt text](z5.png)
 ---
 
 Zadanie
@@ -438,8 +534,57 @@ Spróbuj uzyskać ten sam wynik bez użycia funkcji okna, porównaj wyniki, czas
 > Wyniki:
 
 ```sql
---  ...
+-- dla postgresql:
+with t as(
+    select *
+    from product_history
+    where productid=1 and date_part('year', date) = 2022
+)
+select t.productid, t.productname, t.categoryid, t.date, t.unitprice,
+       (select unitprice from t t1 where t1.productid = t.productid and t1.date<t.date order by t1.date desc limit 1) as previousprodprice,
+       (select unitprice from t t2 where t2.productid = t.productid and t2.date>t.date order by t2.date limit 1) as nextprodprice
+from t;
+
+with t as (
+	select ph.productid, ph.productname, ph.categoryid, ph.date, ph.unitprice,
+	        (select unitprice from product_history ph1 where ph1.productid = ph.productid and ph1.date<ph.date order by ph1.date desc limit 1) as previousprodprice,
+            (select unitprice from product_history ph2 where ph2.productid = ph.productid and ph2.date>ph.date order by ph2.date limit 1) as nextprodprice
+	from product_history ph
+)
+select * from t
+where productid = 1 and date_part('year', date) = 2022
+order by date;
+-- dla MS SQL: zamiast limit 1, przy select top 1, zamiast date_part('year', date), year(date)
+
 ```
+
+Plany obu zapytań z oknami:
+
+![w:700](z5_window_ms.png)
+
+
+Plan pierwszego zapytania bez korzystania z funkcji okna:
+
+![w:700](z5_nowindow_1.png)
+
+
+Plan drugiego zapytania bez korzystania z funkcji okna:
+
+![w:700](z5_nowindow_2.png)
+
+
+Poniżej porównanie czasów rzeczywistych.
+Dla MS SQL: elapsed time (set statistics time on/off).
+Dla Postgresql: execution time (explain analyze).
+
+
+| Zapytanie        | Operacja     | MS SQL [ms] | Postgres [ms] |
+|------------------|-------------|------------|--------------|
+| **Pierwsze zapytanie** | z window   | 230        | 210.091      |
+|                      | bez window | 1276       | 152.932      |
+| **Drugie zapytanie**  | z window   | 205        | 800.154      |
+|                      | bez window | 47         | 20244.705    |
+
 
 ---
 
@@ -463,7 +608,24 @@ Zbiór wynikowy powinien zawierać:
 > Wyniki:
 
 ```sql
---  ...
+with sum_of_order as(
+    select od.orderid, o.orderdate, o.customerid, sum(unitprice * quantity * (1 - discount)) + o.freight as total_order
+    from orderdetails od
+    join orders o ON o.orderid = od.orderid
+    group by od.orderid, o.orderdate, o.customerid, o.freight
+),
+orders_with_prev as(
+    select orderid, customerid, orderdate,
+           lag(orderid) over(partition by customerid order by orderdate) as prev_order_id,
+           lag(orderdate) over(partition by customerid order by orderdate) as prev_order_date
+    from orders o
+)
+select c.companyname, so.orderid, so.orderdate, so.total_order as order_value, op.prev_order_id,
+       (select total_order from sum_of_order where orderid=op.prev_order_id) as prev_order_value,
+       op.prev_order_date
+from sum_of_order so
+join orders_with_prev op ON so.orderid = op.orderid
+join customers c ON so.customerid = c.customerid;
 ```
 
 ---
