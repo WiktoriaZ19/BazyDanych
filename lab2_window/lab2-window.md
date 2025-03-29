@@ -652,8 +652,24 @@ order by categoryid, unitprice desc;
 
 > Wyniki:
 
+Funkcja 'first_value()' w tym przypadku pokazuje najdroższy produkt w danej kategorii, ponieważ w funkcji okna sortujemy według ceny od największej do najmniejszej.
+
+Funkcja 'last_value()' nie pokazuje najtańszego produktu dla danej kategorii, ponieważ domyślnie sortownie jest dla:
+
 ```sql
---  ...
+range between unbounded preceding and current row
+```
+a więc brane są pod uwagę tylko produkty od największej ceny do obecnej.
+
+Aby funkcja 'last_value()' pokazywała najtańszy produkt w danej kategorii, należy ustawić ograniczenie od początku do końca jak poniżej:
+
+```sql
+select productid, productname, unitprice, categoryid,
+	first_value(productname) over (partition by categoryid order by unitprice desc) first,
+	last_value(productname) over (partition by categoryid order by unitprice desc 
+	range between unbounded preceding and unbounded following) last
+from products
+order by categoryid, unitprice desc;
 ```
 
 ---
@@ -662,13 +678,37 @@ Zadanie
 
 Spróbuj uzyskać ten sam wynik bez użycia funkcji okna, porównaj wyniki, czasy i plany zapytań. Przetestuj działanie w różnych SZBD (MS SQL Server, PostgreSql, SQLite)
 
+
 ---
 
 > Wyniki:
 
 ```sql
---  ...
+select p.productid, p.productname, p.unitprice, p.categoryid,
+	(select top 1 p1.productname from products p1 where p1.categoryid=p.categoryid order by unitprice desc) as first,
+	(select top 1 p2.productname from products p2 where p2.categoryid=p.categoryid order by unitprice asc) as last
+from products p
+order by p.categoryid, p.unitprice desc;
 ```
+Plan zapytania z funkcją okna:
+![w:700](z7_window_ms.png)
+
+
+Plan zapytania bez korzystania z funkcji okna:
+
+![w:700](z7_nowindow_ms.png)
+
+
+
+Poniżej porównanie czasów rzeczywistych.
+Dla MS SQL: elapsed time (set statistics time on/off).
+Dla Postgresql: execution time (explain analyze).
+
+| Operacja         | MS SQL[ms] | Postgres czas [ms] |
+|------------------|------------|--------------------|
+| z window         | 4          |    5.215           |
+| bez window       | 3          |    3.481           |
+
 
 ---
 
@@ -698,7 +738,22 @@ Zbiór wynikowy powinien zawierać:
 > Wyniki:
 
 ```sql
---  ...
+with sum_of_order as(
+    select od.orderid, o.orderdate, o.customerid, sum(unitprice * quantity * (1 - discount)) + o.freight as total_order
+    from orderdetails od
+    join orders o ON o.orderid = od.orderid
+    group by od.orderid, o.orderdate, o.customerid, o.freight
+)
+	select customerid, orderid, orderdate, total_order,
+	first_value(orderid) over window_year_month as min_orderid,
+	first_value(orderdate) over window_year_month as min_orderdate, 
+	first_value(total_order) over window_year_month as min_order_value,
+	last_value(orderid) over window_year_month as max_orderid,
+	last_value(orderdate) over window_year_month as max_orderdate, 
+	last_value(total_order) over window_year_month as max_order_value
+	from sum_of_order so
+	window
+		window_year_month as (partition by so.customerid, year(so.orderdate), month(so.orderdate) order by so.total_order range between unbounded preceding and unbounded following);
 ```
 
 ---
