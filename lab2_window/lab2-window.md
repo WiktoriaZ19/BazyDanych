@@ -286,7 +286,7 @@ Przetestuj działanie w różnych SZBD (MS SQL Server, PostgreSql, SQLite)
 ```sql
 -- window function
 with t as (
-	select id, productid, date, productname, categoryid, unitprice,  
+	select id, productid, date, productname, categoryid, unitprice,
 		avg(unitprice) over(partition by categoryid) as avg_price_for_cat,
 		sum(value) over(partition by categoryid) as sum_val_for_cat,
 		avg(unitprice) over(partition by YEAR(date)) as avg_for_year,
@@ -298,7 +298,7 @@ where id between 1 and 200;
 
 -- window function z użyciem window i datepart (Postgresql, SQLite)
 with t as (
-	select id, productid, date, productname, categoryid, unitprice,  
+	select id, productid, date, productname, categoryid, unitprice,
 	avg(unitprice) over window_cat as avg_price_for_cat,
 	sum(value) over window_cat as sum_val_for_cat,
 	avg(unitprice) over window_year as avg_for_year,
@@ -315,12 +315,11 @@ where id between 1 and 100;
 Plan MS:
 ![w:700](z2_window_ms.png)
 
-
 Plan Postgresql:
 ![w:700](z2_window_postgresql.png)
 
 ```sql
--- join 
+-- join
 with avg_sum_per_cat as (
     select categoryid, avg(unitprice) as avg_price_for_cat, sum(value) as sum_val_for_cat
     from product_history
@@ -344,14 +343,13 @@ where id between 1 and 200;
 Plan MS:
 ![w:700](z2_join_ms.png)
 
-
 Plan Postgresql:
 ![w:700](z2_join_postgresql.png)
 
 ```sql
 --subquery
 with ts as (
-	select ph.id, ph.productid, ph.date, ph.productname, ph.categoryid, ph.unitprice, 
+	select ph.id, ph.productid, ph.date, ph.productname, ph.categoryid, ph.unitprice,
 	(select avg(ph1.unitprice) from product_history ph1 where ph1.categoryid = ph.categoryid) as avg_price_for_cat,
 	(select sum(ph2.value) from product_history ph2 where ph2.categoryid = ph.categoryid) as sum_val_for_cat,
 	(select avg(ph3.unitprice) from product_history ph3 where YEAR(ph3.date) = YEAR(ph.date)) as avg_for_year,
@@ -361,23 +359,22 @@ with ts as (
 select * from ts
 where id between 1 and 200;
 ```
+
 Plan MS:
 ![w:700](z2_sub_ms.png)
 
-
 Plan Postgresql:
 ![w:700](z2_sub_postgresql.png)
-
 
 Poniżej porównanie czasów rzeczywistych przy ograniczeniu id od 1 do 200.
 Dla MS SQL: elapsed time (set statistics time on/off).
 Dla Postgresql: execution time (explain analyze).
 
-| Operacja         | MS SQL[ms] | Postgres czas [ms] |
-|------------------|------------|--------------------|
-| Window function  | 1419       |    8550.937        |
-| Join             | 222        |    1100.068        |
-| Subquery         | 201408     |    315267.447      |
+| Operacja        | MS SQL[ms] | Postgres czas [ms] |
+| --------------- | ---------- | ------------------ |
+| Window function | 1419       | 8550.937           |
+| Join            | 222        | 1100.068           |
+| Subquery        | 201408     | 315267.447         |
 
 Zapytanie z podzapytaniem zajmuje najwięcej czasu, zaś z joinem najmniej.
 
@@ -517,13 +514,11 @@ order by date;
 
 > Wyniki:
 
-
 Funkcja 'lag()' -> zwraca poprzednią wartość według danej kolejności, zaś 'lead()' -> kolejną (tutaj: wartość ceny produktu poprzedniego/kolejnego zapisanego dnia).
 
 W wyniku pierwszego zapytania te wartości są wybierane tylko dla productid = 1 i rok = 2022, zaś w drugim zapytaniu te funkcje wykonywane są dla wszystkich wierszy, a wyświetlane tylko dla productid = 1 i rok = 2022. Dlatego dla pierwszego zapytania pierwsza wartość zwracana przez 'lag' to null, a w wyniku drugiego zapytania zwracana jest wartość. Dla 'lead', w obu przypadkach dla ostatniej wartości jest null, ponieważ w bazie nie ma dat dalszych niż 2022.
 
-![alt text](z5.png)
----
+## ![alt text](z5.png)
 
 Zadanie
 
@@ -562,29 +557,24 @@ Plany obu zapytań z oknami:
 
 ![w:700](z5_window_ms.png)
 
-
 Plan pierwszego zapytania bez korzystania z funkcji okna:
 
 ![w:700](z5_nowindow_1.png)
-
 
 Plan drugiego zapytania bez korzystania z funkcji okna:
 
 ![w:700](z5_nowindow_2.png)
 
-
 Poniżej porównanie czasów rzeczywistych.
 Dla MS SQL: elapsed time (set statistics time on/off).
 Dla Postgresql: execution time (explain analyze).
 
-
-| Zapytanie        | Operacja     | MS SQL [ms] | Postgres [ms] |
-|------------------|-------------|------------|--------------|
-| **Pierwsze zapytanie** | z window   | 230        | 210.091      |
-|                      | bez window | 1276       | 152.932      |
-| **Drugie zapytanie**  | z window   | 205        | 800.154      |
-|                      | bez window | 47         | 20244.705    |
-
+| Zapytanie              | Operacja   | MS SQL [ms] | Postgres [ms] |
+| ---------------------- | ---------- | ----------- | ------------- |
+| **Pierwsze zapytanie** | z window   | 230         | 210.091       |
+|                        | bez window | 1276        | 152.932       |
+| **Drugie zapytanie**   | z window   | 205         | 800.154       |
+|                        | bez window | 47          | 20244.705     |
 
 ---
 
@@ -659,6 +649,7 @@ Funkcja 'last_value()' nie pokazuje najtańszego produktu dla danej kategorii, p
 ```sql
 range between unbounded preceding and current row
 ```
+
 a więc brane są pod uwagę tylko produkty od największej ceny do obecnej.
 
 Aby funkcja 'last_value()' pokazywała najtańszy produkt w danej kategorii, należy ustawić ograniczenie od początku do końca jak poniżej:
@@ -666,7 +657,7 @@ Aby funkcja 'last_value()' pokazywała najtańszy produkt w danej kategorii, nal
 ```sql
 select productid, productname, unitprice, categoryid,
 	first_value(productname) over (partition by categoryid order by unitprice desc) first,
-	last_value(productname) over (partition by categoryid order by unitprice desc 
+	last_value(productname) over (partition by categoryid order by unitprice desc
 	range between unbounded preceding and unbounded following) last
 from products
 order by categoryid, unitprice desc;
@@ -677,7 +668,6 @@ order by categoryid, unitprice desc;
 Zadanie
 
 Spróbuj uzyskać ten sam wynik bez użycia funkcji okna, porównaj wyniki, czasy i plany zapytań. Przetestuj działanie w różnych SZBD (MS SQL Server, PostgreSql, SQLite)
-
 
 ---
 
@@ -690,25 +680,22 @@ select p.productid, p.productname, p.unitprice, p.categoryid,
 from products p
 order by p.categoryid, p.unitprice desc;
 ```
+
 Plan zapytania z funkcją okna:
 ![w:700](z7_window_ms.png)
-
 
 Plan zapytania bez korzystania z funkcji okna:
 
 ![w:700](z7_nowindow_ms.png)
 
-
-
 Poniżej porównanie czasów rzeczywistych.
 Dla MS SQL: elapsed time (set statistics time on/off).
 Dla Postgresql: execution time (explain analyze).
 
-| Operacja         | MS SQL[ms] | Postgres czas [ms] |
-|------------------|------------|--------------------|
-| z window         | 4          |    5.215           |
-| bez window       | 3          |    3.481           |
-
+| Operacja   | MS SQL[ms] | Postgres czas [ms] |
+| ---------- | ---------- | ------------------ |
+| z window   | 4          | 5.215              |
+| bez window | 3          | 3.481              |
 
 ---
 
@@ -746,10 +733,10 @@ with sum_of_order as(
 )
 	select customerid, orderid, orderdate, total_order,
 	first_value(orderid) over window_year_month as min_orderid,
-	first_value(orderdate) over window_year_month as min_orderdate, 
+	first_value(orderdate) over window_year_month as min_orderdate,
 	first_value(total_order) over window_year_month as min_order_value,
 	last_value(orderid) over window_year_month as max_orderid,
-	last_value(orderdate) over window_year_month as max_orderdate, 
+	last_value(orderdate) over window_year_month as max_orderdate,
 	last_value(total_order) over window_year_month as max_order_value
 	from sum_of_order so
 	window
@@ -775,7 +762,11 @@ Zbiór wynikowy powinien zawierać:
 W przypadku długiego czasu wykonania ogranicz zbiór wynikowy do kilkuset/kilku tysięcy wierszy
 
 ```sql
--- wyniki ...
+select id, productid, date, value,
+	sum(value) over (partition by productid, year(date), month(date)
+		order by date range between unbounded preceding and current row) as monthly_value
+from product_history
+where id<10000;
 ```
 
 Spróbuj wykonać zadanie bez użycia funkcji okna. Spróbuj uzyskać ten sam wynik bez użycia funkcji okna, porównaj wyniki, czasy i plany zapytań. Przetestuj działanie w różnych SZBD (MS SQL Server, PostgreSql, SQLite)
@@ -785,10 +776,29 @@ Spróbuj wykonać zadanie bez użycia funkcji okna. Spróbuj uzyskać ten sam wy
 > Wyniki:
 
 ```sql
---  ...
+select ph.id, ph.productid, ph.date, ph.value,
+	(select sum(value) from product_history
+	 where productid=ph.productid and year(date)=year(ph.date)
+	 and month(date)=month(ph.date) and date<=ph.date) as monthly_value
+from product_history ph
+where id<10000
+order by productid, date;
 ```
 
----
+Plan zapytania z funkcją okna
+![alt text](z9_1.png)
+
+Plan zapytania bez funkcji okna
+![alt text](z9_2.png)
+
+Porównanie czasów zapytań:
+
+| Operacja   | MS SQL[ms] | Postgres czas [ms] |
+| ---------- | ---------- | ------------------ |
+| z window   | 4000       | 836                |
+| bez window | 11000      | -                  |
+
+Dla zapytania bez funkcji okna w Postgres należałoby jeszcze bardziej ograniczyć liczbę wierszy - po 8 minutach zapytanie dalej się nie wykonało.
 
 # Zadanie 10
 
@@ -799,7 +809,17 @@ Wykonaj kilka "własnych" przykładowych analiz. Czy są jeszcze jakieś ciekawe
 > Wyniki:
 
 ```sql
---  ...
+-- Ranking procentowy (gdzie jest produkt w kategorii, od najtańszych do najdroższych)
+select productid, productname, unitprice, categoryid,
+    PERCENT_RANK() over (partition by categoryid order by unitprice) as percent_rank
+from products
+order by categoryid, unitprice;
+
+-- Dystrybucja skumulowana (ile % produktów ma cenę mniejszą lub równą)
+select productid, productname, unitprice, categoryid,
+    CUME_DIST() over (partition by categoryid order by unitprice desc) as cume_dist
+from products
+order by categoryid, unitprice desc;
 ```
 
 ---
