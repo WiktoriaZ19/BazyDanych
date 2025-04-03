@@ -296,7 +296,7 @@ with t as (
 select * from t
 where id between 1 and 200;
 
--- window function z użyciem window i datepart (Postgresql, SQLite)
+-- window function z użyciem window i datepart 
 with t as (
 	select id, productid, date, productname, categoryid, unitprice,
 	avg(unitprice) over window_cat as avg_price_for_cat,
