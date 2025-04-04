@@ -513,25 +513,55 @@ Funkcje `lag()`, `lead()`
 Wykonaj polecenia, zaobserwuj wynik. Jak działają funkcje `lag()`, `lead()`
 
 ```sql
-select productid, productname, categoryid, date, unitprice,
-       lag(unitprice) over (partition by productid order by date)
-as previousprodprice,
-       lead(unitprice) over (partition by productid order by date)
-as nextprodprice
-from product_history
-where productid = 1 and year(date) = 2022
-order by date;
 
-with t as (select productid, productname, categoryid, date, unitprice,
-                  lag(unitprice) over (partition by productid
-order by date) as previousprodprice,
-                  lead(unitprice) over (partition by productid
-order by date) as nextprodprice
-           from product_history
-           )
-select * from t
-where productid = 1 and year(date) = 2022
-order by date;
+SELECT 
+    productid,
+    productname,
+    categoryid,
+    date,
+    unitprice,
+    
+    LAG(unitprice) OVER (
+        PARTITION BY productid
+        ORDER BY date
+    ) AS previousprodprice,
+    
+    LEAD(unitprice) OVER (
+        PARTITION BY productid
+        ORDER BY date
+    ) AS nextprodprice
+
+FROM product_history
+WHERE productid = 1
+  AND YEAR(date) = 2022
+ORDER BY date;
+
+
+WITH t AS (
+    SELECT 
+        productid,
+        productname,
+        categoryid,
+        date,
+        unitprice,
+        
+        LAG(unitprice) OVER (
+            PARTITION BY productid
+            ORDER BY date
+        ) AS previousprodprice,
+        
+        LEAD(unitprice) OVER (
+            PARTITION BY productid
+            ORDER BY date
+        ) AS nextprodprice
+    FROM product_history
+)
+
+SELECT *
+FROM t
+WHERE productid = 1
+  AND YEAR(date) = 2022
+ORDER BY date;
 ```
 
 ---
