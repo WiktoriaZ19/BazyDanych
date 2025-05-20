@@ -93,3 +93,27 @@ drop  index customer_store_cls_idx on customer;
 
 create clustered index customer_store_cls_idx on customer(storeid);
 
+
+
+
+
+------------------------	ZADANIE 5 -------------------------------------------------
+select * into billofmaterials
+from adventureworks2017.production.billofmaterials;
+
+
+select productassemblyid, componentid, startdate
+from billofmaterials 
+where enddate is not null
+and componentid = 327
+and startdate >= '2010-08-05';
+
+create nonclustered index billofmaterials_cond_idx
+on billofmaterials (componentid, startdate)
+where enddate is not null;
+
+select productassemblyid, componentid, startdate
+from billofmaterials with (index(billofmaterials_cond_idx))
+where enddate is not null
+and componentid = 327
+and startdate >= '2010-08-05';

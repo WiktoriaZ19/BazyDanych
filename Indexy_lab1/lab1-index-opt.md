@@ -704,17 +704,34 @@ Czy indeks został użyty? Dlaczego?
 
 > Wyniki:
 
-```sql
---  ...
-```
+Po utworzeniu indeksu i uruchomieniu powyższego zapytania, nie został on użyty. Poniżej przedstawiono plan tego zapytania:
+
+<img src="_img/ex5_plan1.png" alt="image">
+
+Zastosowany indeks jest indeksem filtrowanym i zawiera tylko wiersze gdzie enddate nie jest null.
+
+Indeks nie został użyty ze względu na niewielki rozmiar takich danych - bardziej optymalnym było przefiltrowanie tabeli niż wyszukiwanie przez indeks.
+
 
 Spróbuj wymusić indeks. Co się stało, dlaczego takie zachowanie?
 
 > Wyniki:
 
+W wyniku wymuszenia zastosowania indeksu:
+
 ```sql
---  ...
+select productassemblyid, componentid, startdate
+from billofmaterials with (index(billofmaterials_cond_idx))
+where enddate is not null
+and componentid = 327
+and startdate >= '2010-08-05';
 ```
+
+otrzymano plan zapytania:
+
+<img src="_img/ex5_plan1_idx.png" alt="image">
+
+W wyniku wymuszenia indeksu, pogorszyła się wydajność - czas wzrósł z 1ms do 3ms, a koszt wzrósł z 0.020303 do 0.0723578.
 
 ---
 
