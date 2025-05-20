@@ -286,7 +286,7 @@ Przejdź do zakładki **Reports**. Sprawdź poszczególne raporty. Główną uwa
 
 <img src="_img/ex2_rep3.png" alt="image" width="500" height="auto">
 
-Utworzenie indeksów znacząco zredukowało koszty zapytań - w przypadku niektórych nawet o blisko 100%.
+- Utworzenie indeksów znacząco zredukowało koszty zapytań - w przypadku niektórych nawet o blisko 100%.
 
 Zapisz poszczególne rekomendacje:
 
@@ -409,37 +409,42 @@ CREATE STATISTICS [_dta_stat_581577110_1_3]
 go
 ```
 
-Indeks 1 - kolumną kluczową jest _SalesOrderID_, dołączone są prawie wszystkie pozostałe kolumny, ponieważ zapytania często łączą tabele _salesorderheader_ i _salesorderdetail_ po _SalesOrderID_, a reszta kolumn jest często wybierana w poleceniu `select`.
+- Indeks 1 - kolumną kluczową jest _SalesOrderID_, dołączone są prawie wszystkie pozostałe kolumny, ponieważ zapytania często łączą tabele _salesorderheader_ i _salesorderdetail_ po _SalesOrderID_, a reszta kolumn jest często wybierana w poleceniu `select`.
 
-Indeks 2 - jest stworzony do optymalizacji zapytania 2. Kolumny kluczowe to _SalesOrderID_ oraz _ProductID_, ponieważ są wybrane w `select` i po nich są grupowane rekordy, a dodatkowe kolumny _OrderQty_, _UnitPriceDiscount_, _LineTotal_ są agregowane w `select`. Indeks pomaga grupować i filtrować dane.
+- Indeks 2 - jest stworzony do optymalizacji zapytania 2. Kolumny kluczowe to _SalesOrderID_ oraz _ProductID_, ponieważ są wybrane w `select` i po nich są grupowane rekordy, a dodatkowe kolumny _OrderQty_, _UnitPriceDiscount_, _LineTotal_ są agregowane w `select`. Indeks pomaga grupować i filtrować dane.
 
-Indeks 3 - umozliwia szybsze sortowanie i filtrowanie w zapytaniu 4, w którym dane są sortowane po _SalesOrderID_ oraz filtrowane przez warunek na _CarrierTrackingNumber_. Dodatkowo stworzone statystyki maja wspierać optymalizator w planowaniu wykonywania zapytań.
+- Indeks 3 - umozliwia szybsze sortowanie i filtrowanie w zapytaniu 4, w którym dane są sortowane po _SalesOrderID_ oraz filtrowane przez warunek na _CarrierTrackingNumber_. Dodatkowo stworzone statystyki maja wspierać optymalizator w planowaniu wykonywania zapytań.
 
-Indeks 4 - wspiera sortowanie i filtrowanie po _OrderDate_, drugą kluczową kolumną jest _SalesOrderID_, a dołączone są prawie wszystkie kolumny. Jest używany w zapytaniach, gdzie wybieramy wiele kolumn, np. zapytanie 1.
+- Indeks 4 - wspiera sortowanie i filtrowanie po _OrderDate_, drugą kluczową kolumną jest _SalesOrderID_, a dołączone są prawie wszystkie kolumny. Jest używany w zapytaniach, gdzie wybieramy wiele kolumn, np. zapytanie 1.
 
-Indeks 5 - stworzony do zapytania 3, które używa wyszczególnionych kolumn.
+- Indeks 5 - stworzony do zapytania 3, które używa wyszczególnionych kolumn.
 
-Indeks 6 - od poprzedniego indeksu różni się tylko o _OrderDate_, ma wspierać zapytanie 4, ktore nie używa _OrderDate_.
+- Indeks 6 - od poprzedniego indeksu różni się tylko o _OrderDate_, ma wspierać zapytanie 4, ktore nie używa _OrderDate_.
 
-Indeks 7 - kolumną kluczową jest _OrderDate_, dodatkową _SalesOrderID_. Jest to prosty indeks do filtrowania po dacie. Podobnie jak przy indeksie 3 stworzone zostały również statystyki.
+- Indeks 7 - kolumną kluczową jest _OrderDate_, dodatkową _SalesOrderID_. Jest to prosty indeks do filtrowania po dacie. Podobnie jak przy indeksie 3 stworzone zostały również statystyki.
 
 Sprawdź jak zmieniły się Execution Plany. Opisz zmiany:
 
 Koszty wykonywania zapytań zdecydowanie zmalały. Czasy wykonywania również poza zapytaniem 2.
 
 Zapytanie 1
+
 <img src="_img/ex2_plan1.png" alt="image" width="500" height="auto">
 
 Zapytanie 1.1
+
 <img src="_img/ex2_plan11.png" alt="image" width="500" height="auto">
 
 Zapytanie 2
+
 <img src="_img/ex2_plan2.png" alt="image" width="500" height="auto">
 
 Zapytanie 3
+
 <img src="_img/ex2_plan3.png" alt="image" width="500" height="auto">
 
 Zapytanie 4
+
 <img src="_img/ex2_plan4.png" alt="image" width="500" height="auto">
 
 |             |       |                     |
@@ -595,6 +600,10 @@ from address
 where postalcode between n'98000' and n'99999'
 ```
 
+Plan zapytania:
+
+<img src="_img/ex4_plan1.png" alt="image">
+
 ```sql
 create index address_postalcode_1
 on address (postalcode)
@@ -614,11 +623,25 @@ Czy jest widoczna różnica w planach/kosztach zapytań?
 
 Aby wymusić użycie indeksu użyj `WITH(INDEX(Address_PostalCode_1))` po `FROM`
 
+Plan zapytania z address_postalcode_1:
+
+<img src="_img/ex4_plan2.png" alt="image">
+
+Plan zapytania z address_postalcode_2:
+
+<img src="_img/ex4_plan3.png" alt="image">
+
+Oba indeksy znacząco poprawiają wydajność względem braku indeksu. _address_postalcode_2_ jest nieco szybszy (mniej ms), mimo że koszt zapytania jest taki sam. Plan wykonania w obu przypadkach zapytań z indeksami wykorzystuje "index seek". Zapytanie bez indeksu musiało przeskanować całą tabelę.
+
 > Wyniki:
 
-```sql
---  ...
-```
+Porównanie indeksów:
+
+|           |             |                      |                      |
+| --------- | ----------- | -------------------- | -------------------- |
+|           | bez indeksu | address_postalcode_1 | address_postalcode_2 |
+| czas [ms] | 33          | 11                   | 6                    |
+| koszt     | 0.2804      | 0.0284               | 0.0284               |
 
 Sprawdź rozmiar Indeksów:
 
@@ -635,9 +658,14 @@ Który jest większy? Jak można skomentować te dwa podejścia do indeksowania?
 
 > Wyniki:
 
-```sql
---  ...
-```
+Rozmiary indeksów
+
+|                      |                      |
+| -------------------- | -------------------- |
+| address_postalcode_1 | address_postalcode_2 |
+| 1784                 | 1808                 |
+
+Indeks _address_postalcode_1_, zawierający kolumny w sekcji INCLUDE, zapewnia dobrą wydajność przy relatywnie małym rozmiarze i prostszej strukturze. Natomiast _address_postalcode_2_, który zawiera te same kolumny jako klucz indeksu, jest większy, ale umożliwia dodatkową optymalizację zapytań zawierających sortowanie lub warunki na tych kolumnach. W analizowanym przypadku oba indeksy zapewniły zbliżoną poprawę kosztu zapytań, jednak _address_postalcode_2_ był nieco szybszy kosztem większego zużycia miejsca.
 
 # Zadanie 5 – Indeksy z filtrami
 
