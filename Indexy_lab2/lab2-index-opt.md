@@ -204,13 +204,15 @@ Zakres productsubcategoryid w pierwszym zapytaniu pokrywa się z zakresem indeks
 Skopiuj tabelę `PurchaseOrderDetail` do swojej bazy danych:
 
 ```sql
-select * into purchaseorderdetail from  adventureworks2017.purchasing.purchaseorderdetail
+select * into purchaseorderdetail
+from  adventureworks2017.purchasing.purchaseorderdetail
 ```
 
 Wykonaj analizę zapytania:
 
 ```sql
-select rejectedqty, ((rejectedqty/orderqty)*100) as rejectionrate, productid, duedate
+select rejectedqty, ((rejectedqty/orderqty)*100) as rejectionrate,
+  productid, duedate
 from purchaseorderdetail
 order by rejectedqty desc, productid asc
 ```
@@ -394,7 +396,8 @@ DECLARE @i INT = 0;
 WHILE @i < 100000
 BEGIN
     INSERT INTO EmployeeSalaryHistory (
-        EmployeeId, DepartmentId, JobTitle, Salary, CurrencyCode, StartDate, EndDate, IsCurrent
+        EmployeeId, DepartmentId, JobTitle, Salary,
+        CurrencyCode, StartDate, EndDate, IsCurrent
     )
     VALUES (
         ABS(CHECKSUM(NEWID())) % 1000 + 1,
@@ -451,8 +454,8 @@ Rozmiary indeksów
 **Zapytanie 1** - SQL MS wykorzystuje `Salary_Col_Idx` (najbardziej optymalny). Po wymuszeniu `Salary_EmployeeId_Idx` koszt zapytania się zwiększa z 0.02 do ponad 0.7. Indeks kolumnowy jest w tym przypadku lepszy.
 
 ```sql
-select count(distinct EmployeeId) as Num_Of_Employees
-from EmployeeSalaryHistory;
+SELECT COUNT(DISTINCT EmployeeId) AS Num_Of_Employees
+FROM EmployeeSalaryHistory;
 ```
 
 <img src="z5_plan1.png" alt="image">
@@ -530,13 +533,16 @@ CREATE NONCLUSTERED INDEX [_dta_index_EmployeeSalaryHistory_5_1237579447__K9_2_5
 (
 	[IsCurrent] ASC
 )
-INCLUDE([EmployeeId],[Salary]) WITH (SORT_IN_TEMPDB = OFF, DROP_EXISTING = OFF, ONLINE = OFF) ON [PRIMARY]
+INCLUDE([EmployeeId],[Salary])
+  WITH (SORT_IN_TEMPDB = OFF, DROP_EXISTING = OFF, ONLINE = OFF) ON [PRIMARY]
 go
 
-CREATE NONCLUSTERED INDEX [_dta_index_EmployeeSalaryHistory_5_1237579447__K9] ON [dbo].[EmployeeSalaryHistory]
+CREATE NONCLUSTERED INDEX [_dta_index_EmployeeSalaryHistory_5_1237579447__K9]
+ON [dbo].[EmployeeSalaryHistory]
 (
 	[IsCurrent] ASC
-)WITH (SORT_IN_TEMPDB = OFF, DROP_EXISTING = OFF, ONLINE = OFF) ON [PRIMARY]
+)
+WITH (SORT_IN_TEMPDB = OFF, DROP_EXISTING = OFF, ONLINE = OFF) ON [PRIMARY]
 go
 ```
 
