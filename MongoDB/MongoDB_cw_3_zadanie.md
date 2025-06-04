@@ -102,6 +102,213 @@ stwórz kolekcję `OrdersInfo` zawierającą następujące dane o zamówieniach
 ]
 ```
 
+Polecenia tworzące kolekcję `OrdersInfo`:
+
+```js
+db.orders.aggregate([
+  {
+    $lookup: {
+      from: "customers",
+      localField: "CustomerID",
+      foreignField: "CustomerID",
+      as: "customer",
+    },
+  },
+  { $unwind: "$customer" },
+
+  {
+    $lookup: {
+      from: "orderdetails",
+      localField: "OrderID",
+      foreignField: "OrderID",
+      as: "orderdetails",
+    },
+  },
+
+  {
+    $addFields: {
+      Orderdetails: {
+        $map: {
+          input: "$orderdetails",
+          as: "item",
+          in: {
+            UnitPrice: "$$item.UnitPrice",
+            Quantity: "$$item.Quantity",
+            Discount: "$$item.Discount",
+            Value: {
+              $multiply: [
+                "$$item.UnitPrice",
+                "$$item.Quantity",
+                { $subtract: [1, "$$item.Discount"] },
+              ],
+            },
+            ProductID: "$$item.ProductID",
+          },
+        },
+      },
+    },
+  },
+
+  {
+    $addFields: {
+      OrderTotal: {
+        $sum: {
+          $map: {
+            input: "$Orderdetails",
+            as: "item",
+            in: "$$item.Value",
+          },
+        },
+      },
+    },
+  },
+
+  {
+    $lookup: {
+      from: "employees",
+      localField: "EmployeeID",
+      foreignField: "EmployeeID",
+      as: "employee",
+    },
+  },
+  { $unwind: "$employee" },
+
+  {
+    $lookup: {
+      from: "shippers",
+      localField: "ShipVia",
+      foreignField: "ShipperID",
+      as: "shipper",
+    },
+  },
+  { $unwind: "$shipper" },
+
+  {
+    $lookup: {
+      from: "products",
+      localField: "Orderdetails.ProductID",
+      foreignField: "ProductID",
+      as: "ProductData",
+    },
+  },
+
+  {
+    $lookup: {
+      from: "categories",
+      localField: "ProductData.CategoryID",
+      foreignField: "CategoryID",
+      as: "CategoryData",
+    },
+  },
+
+  {
+    $addFields: {
+      Orderdetails: {
+        $map: {
+          input: "$Orderdetails",
+          as: "item",
+          in: {
+            UnitPrice: "$$item.UnitPrice",
+            Quantity: "$$item.Quantity",
+            Discount: "$$item.Discount",
+            Value: "$$item.Value",
+            Product: {
+              $let: {
+                vars: {
+                  prod: {
+                    $arrayElemAt: [
+                      {
+                        $filter: {
+                          input: "$ProductData",
+                          as: "p",
+                          cond: { $eq: ["$$p.ProductID", "$$item.ProductID"] },
+                        },
+                      },
+                      0,
+                    ],
+                  },
+                },
+                in: {
+                  ProductID: "$$prod.ProductID",
+                  ProductName: "$$prod.ProductName",
+                  QuantityPerUnit: "$$prod.QuantityPerUnit",
+                  CategoryID: "$$prod.CategoryID",
+                  CategoryName: {
+                    $let: {
+                      vars: {
+                        cat: {
+                          $arrayElemAt: [
+                            {
+                              $filter: {
+                                input: "$CategoryData",
+                                as: "c",
+                                cond: {
+                                  $eq: ["$$c.CategoryID", "$$prod.CategoryID"],
+                                },
+                              },
+                            },
+                            0,
+                          ],
+                        },
+                      },
+                      in: "$$cat.CategoryName",
+                    },
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+    },
+  },
+
+  {
+    $project: {
+      _id: 1,
+      OrderID: "$OrderID",
+      Customer: {
+        CustomerID: "$customer.CustomerID",
+        CompanyName: "$customer.CompanyName",
+        City: "$customer.City",
+        Country: "$customer.Country",
+      },
+
+      Employee: {
+        EmployeeID: "$employee.EmployeeID",
+        FirstName: "$employee.FirstName",
+        LastName: "$employee.LastName",
+        Title: "$employee.Title",
+      },
+
+      Dates: {
+        OrderDate: "$OrderDate",
+        RequiredDate: "$RequiredDate",
+      },
+
+      Orderdetails: "$Orderdetails",
+
+      Freight: "$Freight",
+      OrderTotal: "$OrderTotal",
+      Shipment: {
+        Shipper: {
+          ShipperID: "$shipper.ShipperID",
+          CompanyName: "$shipper.CompanyName",
+        },
+        ShipName: "$ShipName",
+        ShipAddress: "$ShipAddress",
+        ShipCity: "$ShipCity",
+        ShipCountry: "$ShipCountry",
+      },
+    },
+  },
+
+  {
+    $out: "OrdersInfo",
+  },
+]);
+```
+
 # Zadanie 2
 
 stwórz kolekcję `CustomerInfo` zawierającą następujące dane o każdym kliencie
