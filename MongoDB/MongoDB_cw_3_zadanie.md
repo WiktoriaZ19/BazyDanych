@@ -333,6 +333,114 @@ stwórz kolekcję `CustomerInfo` zawierającą następujące dane o każdym klie
 ]
 ```
 
+
+Polecenie tworzące kolekcję `CustomerInfo`:
+
+```js
+db.OrdersInfo.aggregate([
+    {
+        $group: {
+            _id: "$Customer.CustomerID", 
+            CustomerID: {$first: "$Customer.CustomerID"}, 
+            CompanyName: {$first: "$Customer.CompanyName"},
+            City: {$first: "$Customer.City"},
+            Country: {$first: "$Customer.Country"},
+            Orders: {
+                $push: { 
+                    OrderID: "$OrderID",
+                    Employee: "$Employee",
+                    Dates: "$Dates",
+                    Orderdetails: "$Orderdetails",
+                    Freight: "$Freight",
+                    OrderTotal: "$OrderTotal",
+                    Shipment: "$Shipment"
+                }
+            }
+        }
+    },
+    {
+        $project: { 
+            _id: 1,
+            CustomerID: 1,
+            CompanyName: 1,
+            City: 1,
+            Country: 1,
+            Orders: 1
+        }
+    },
+    {
+        $out: "CustomerInfo"
+    }
+]);
+```
+
+Przykładowy wynik (a przynajmniej część - 1 zamówienie dla 1 klienta):
+```js
+[
+  {
+    "_id": "BLONP",
+    "City": "Strasbourg",
+    "CompanyName": "Blondesddsl père et fils",
+    "Country": "France",
+    "CustomerID": "BLONP",
+    "Orders": [
+      {
+        "OrderID": 10265,
+        "Employee": {
+          "EmployeeID": 2,
+          "FirstName": "Andrew",
+          "LastName": "Fuller",
+          "Title": "Vice President, Sales"
+        },
+        "Dates": {
+          "OrderDate": {"$date": "1996-07-25T00:00:00.000Z"},
+          "RequiredDate": {"$date": "1996-08-22T00:00:00.000Z"}
+        },
+        "Orderdetails": [
+          {
+            "UnitPrice": 31.2,
+            "Quantity": 30,
+            "Discount": 0,
+            "Value": 936,
+            "Product": {
+              "ProductID": 17,
+              "ProductName": "Alice Mutton",
+              "QuantityPerUnit": "20 - 1 kg tins",
+              "CategoryID": 6,
+              "CategoryName": "Meat/Poultry"
+            }
+          },
+          {
+            "UnitPrice": 12,
+            "Quantity": 20,
+            "Discount": 0,
+            "Value": 240,
+            "Product": {
+              "ProductID": 70,
+              "ProductName": "Outback Lager",
+              "QuantityPerUnit": "24 - 355 ml bottles",
+              "CategoryID": 1,
+              "CategoryName": "Beverages"
+            }
+          }
+        ],
+        "Freight": 55.28,
+        "OrderTotal": 1176,
+        "Shipment": {
+          "Shipper": {
+            "ShipperID": 1,
+            "CompanyName": "Speedy Express"
+          },
+          "ShipName": "Blondel père et fils",
+          "ShipAddress": "24, place Kléber",
+          "ShipCity": "Strasbourg",
+          "ShipCountry": "France"
+        }
+      },
+
+
+```
+
 # Zadanie 3
 
 Napisz polecenie/zapytanie: Dla każdego klienta pokaż wartość zakupionych przez niego produktów z kategorii 'Confections' w 1997r
@@ -362,7 +470,7 @@ Napisz polecenie/zapytanie: Dla każdego klienta pokaż wartość zakupionych pr
 
 # Zadanie 4
 
-Napisz polecenie/zapytanie: Dla każdego klienta poaje wartość sprzedaży z podziałem na lata i miesiące
+Napisz polecenie/zapytanie: Dla każdego klienta podaje wartość sprzedaży z podziałem na lata i miesiące
 Spróbuj napisać to zapytanie wykorzystując - oryginalne kolekcje (`customers, orders, orderdertails, products, categories`) - kolekcję `OrderInfo` - kolekcję `CustomerInfo`
 
 - porównaj zapytania/polecenia/wyniki
@@ -389,7 +497,301 @@ Spróbuj napisać to zapytanie wykorzystując - oryginalne kolekcje (`customers,
 ]
 ```
 
+1. Użycie oryginalnych kolekcji:
+
+```js
+db.customers.aggregate([
+  // Dołączenie orders
+  {
+    $lookup: {
+      from: "orders",
+      localField: "CustomerID",
+      foreignField: "CustomerID",
+      as: "Orders"
+    }
+  },
+  { $unwind: "$Orders" },
+
+  // Dołączenie orderdetails
+  {
+    $lookup: {
+      from: "orderdetails",
+      localField: "Orders.OrderID",
+      foreignField: "OrderID",
+      as: "OrderDetails"
+    }
+  },
+  { $unwind: "$OrderDetails" },
+
+  // Obliczenie wartości jednej pozycji zamówienia
+  {
+    $addFields: {
+      OrderValue: {
+        $multiply: [
+          "$OrderDetails.UnitPrice",
+          "$OrderDetails.Quantity",
+          { $subtract: [1, "$OrderDetails.Discount"] }
+        ]
+      }
+    }
+  },
+
+  // Dodanie informacji o roku i miesiącu
+  {
+    $addFields: {
+      Year: { $year: "$Orders.OrderDate" },
+      Month: { $month: "$Orders.OrderDate" }
+    }
+  },
+
+  // Grupowanie po kliencie, roku i miesiącu
+  {
+    $group: {
+      _id: {
+        CustomerID: "$CustomerID",
+        CompanyName: "$CompanyName",
+        Year: "$Year",
+        Month: "$Month"
+      },
+      TotalSales: { $sum: "$OrderValue" }
+    }
+  },
+
+  // Grupowanie wyników dla każdego klienta
+  {
+    $group: {
+      _id: "$_id.CustomerID",
+      CustomerID: { $first: "$_id.CustomerID" },
+      CompanyName: { $first: "$_id.CompanyName" },
+      Sales: {
+        $push: {
+          Year: "$_id.Year",
+          Month: "$_id.Month",
+          Total: "$TotalSales"
+        }
+      }
+    }
+  },
+
+  {
+    $project: {
+      _id: 1,
+      CustomerID: 1,
+      CompanyName: 1,
+      Sales: 1
+    }
+  }
+]);
 ```
+
+Przykładowy wynik:
+
+```js
+[
+  {
+    "_id": "ALFKI",
+    "CompanyName": "Alfreds Futterkiste",
+    "CustomerID": "ALFKI",
+    "Sales": [
+      {
+        "Year": 1998,
+        "Month": 4,
+        "Total": 933.4999996051192
+      },
+      {
+        "Year": 1998,
+        "Month": 1,
+        "Total": 845.799999922514
+      },
+      {
+        "Year": 1997,
+        "Month": 8,
+        "Total": 814.5
+      },
+      {
+        "Year": 1998,
+        "Month": 3,
+        "Total": 471.19999970197676
+      },
+      {
+        "Year": 1997,
+        "Month": 10,
+        "Total": 1208
+      }
+    ]
+  },
+```
+
+
+2. Użycie `OrderInfo`:
+
+```js
+db.OrdersInfo.aggregate([
+    {
+        $addFields: {
+            Year: { $year: "$Dates.OrderDate"},
+            Month: { $month: "$Dates.OrderDate"},
+        }
+    },
+    {
+        $group: {
+            _id: {
+            CustomerID: "$Customer.CustomerID",
+            CompanyName: "$Customer.CompanyName",
+            Year: "$Year",
+            Month: "Month"
+            },
+            Total: {$sum: "$OrderTotal"}
+        }
+    },
+    {
+        $group: {
+            _id: "$_id.CustomerID",
+            CustomerID: { $first: "$_id.CustomerID"},
+            CompanyName: { $first: "$_id.CompanyName"},
+            Sale: {
+                $push: { 
+                    Year: "$_id.Year",
+                    Month: "$_id.Month",
+                    Total: "$Total",
+
+                }
+            }
+        }
+    },
+    {
+        $project: {
+            _id: 1,
+            CustomerID: 1,
+            CompanyName: 1,
+            Sale: 1
+        }
+    }
+]);
+```
+
+Przykładowy wynik:
+
+```js
+[
+  {
+    "_id": "LILAS",
+    "CompanyName": "LILA-Supermercado",
+    "CustomerID": "LILAS",
+    "Sale": [
+      {
+        "Year": 1996,
+        "Month": "Month",
+        "Total": 5394.079985570907
+      },
+      {
+        "Year": 1997,
+        "Month": "Month",
+        "Total": 5175.199989449978
+      },
+      {
+        "Year": 1998,
+        "Month": "Month",
+        "Total": 5507.319994567037
+      }
+    ]
+  },
+
+```
+
+3. Użycie `CustomerInfo`:
+
+```js
+db.CustomerInfo.aggregate([
+    {
+        $unwind: "$Orders"
+    },
+    {
+        $addFields: {
+            Year: { $year: "$Orders.Dates.OrderDate"},
+            Month: { $month: "$Orders.Dates.OrderDate"},
+            OrderTotal: "$Orders.OrderTotal"
+        }
+    },
+    {
+        $group: {
+            _id: {
+            CustomerID: "$CustomerID",
+            CompanyName: "$CompanyName",
+            Year: "$Year",
+            Month: "$Month"
+            },
+            Total: {$sum: "$OrderTotal"}
+        }
+    },
+    {
+        $group: {
+            _id: "$_id.CustomerID",
+            CustomerID: { $first: "$_id.CustomerID"},
+            CompanyName: { $first: "$_id.CompanyName"},
+            Sale: {
+                $push: {
+                    Year: "$_id.Year",
+                    Month: "$_id.Month",
+                    Total: "$Total",
+
+                }
+            }
+        }
+    },
+    {
+        $project: {
+            _id: 1,
+            CustomerID: 1,
+            CompanyName: 1,
+            Sale: 1
+        }
+    }
+]);
+```
+
+Przykładowy wynik:
+
+```js
+[
+  {
+    "_id": "GROSR",
+    "CompanyName": "GROSELLA-Restaurante",
+    "CustomerID": "GROSR",
+    "Sale": [
+      {
+        "Year": 1997,
+        "Month": 12,
+        "Total": 387.5
+      },
+      {
+        "Year": 1996,
+        "Month": 7,
+        "Total": 1101.2
+      }
+    ]
+  },
+```
+
+**Oryginalne kolekcje:**
+
+- najbardziej złożone zapytanie
+
+- mamy tutaj najwięcej kontroli nad obliczeniami
+
+- wymaga ręcznego przeliczania wartości zamówień
+
+**Użycie OrderInfo:**
+
+- zapytanie dużo prostsze niż w wersji z oryginalnymi kolekcjami
+
+- używa gotowego pola OrderTotal
+
+**Użycie CustomerInfo:**
+
+- proste i czytelne jak przy użyciu OrderInfo
+
+
 
 ---
 
